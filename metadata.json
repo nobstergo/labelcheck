@@ -1,0 +1,6 @@
+{
+  "name": "LabelCheck",
+  "description": "Packaged commodity label verification system based on the Legal Metrology (Packaged Commodities) Rules, 2011.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
