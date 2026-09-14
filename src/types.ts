@@ -77,3 +77,85 @@ export interface SampleProduct {
   imageUrl: string;
   expectedOutcome: string;
 }
+
+export type NavigationTab = 'scan' | 'inspect' | 'history' | 'about';
+
+export interface ApprovedProductFields {
+  product_name?: string; // LM-002
+  net_quantity?: string; // LM-003
+  mrp?: string; // LM-005
+  manufacturer?: string; // LM-001
+  consumer_care?: string; // LM-006
+  country_of_origin?: string; // LM-007
+  date_info?: string; // LM-004
+  unit_sale_price?: string; // LM-008
+}
+
+export interface ApprovedProduct {
+  id: string;
+  name: string;
+  category?: string;
+  createdAt: string;
+  fields: ApprovedProductFields;
+  referenceImageUrl?: string; // The parent scanned benchmark image
+  rawOcrText?: string;
+  parentKeywords?: string[];
+  commodityType?: string;
+}
+
+export type ComparisonFieldStatus = 'MATCH' | 'MISMATCH' | 'MISSING' | 'REVIEW';
+export type InspectionPackageStatus = 'PASS' | 'FLAG' | 'REVIEW' | 'WAITING' | 'FOREIGN_PRODUCT';
+
+export interface FieldComparisonResult {
+  fieldKey: keyof ApprovedProductFields;
+  fieldName: string;
+  ruleCode: string;
+  expected: string;
+  detected: string;
+  status: ComparisonFieldStatus;
+  differenceNote?: string;
+  bbox?: BoundingBox;
+  confidence: number;
+}
+
+export interface InspectionResult {
+  id: string;
+  timestamp: string;
+  status: InspectionPackageStatus;
+  statusMessage: string;
+  approvedProductId: string;
+  approvedProductName: string;
+  referenceImageUrl?: string; // Parent scanned image for visual verification
+  fields: FieldComparisonResult[];
+  capturedImageUrl: string;
+  mismatchSummary?: string;
+  rawFullText?: string;
+  belongsToParent?: boolean;
+  parentMatchConfidence?: number; // 0-100%
+  isForeignProduct?: boolean;
+  foreignReason?: string;
+  packetNumber?: number;
+  isResolved?: boolean;
+  resolutionNote?: string;
+  matchedCount?: number;
+  totalParametersCount?: number;
+}
+
+export interface InspectionCounters {
+  totalChecked: number;
+  passed: number;
+  flagged: number;
+  review: number;
+}
+
+export interface InspectionSession {
+  id: string;
+  productId: string;
+  productName: string;
+  startTime: string;
+  endTime?: string;
+  counters: InspectionCounters;
+  commonIssues: Array<{ issue: string; count: number }>;
+  records: InspectionResult[];
+}
+

@@ -6,11 +6,16 @@ import { VerificationSummary } from './components/VerificationSummary';
 import { RuleCard } from './components/RuleCard';
 import { FieldEditorModal } from './components/FieldEditorModal';
 import { ReportModal } from './components/ReportModal';
-import { ExtractedField, RuleStatus, VerificationResult } from './types';
+import { InspectPage } from './components/InspectPage';
+import { HistoryView } from './components/HistoryView';
+import { AboutView } from './components/AboutView';
+import { SaveAsApprovedModal } from './components/SaveAsApprovedModal';
+import { ExtractedField, NavigationTab, RuleStatus, VerificationResult } from './types';
 import { evaluateCompliance } from './services/complianceEngine';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export function App() {
+  const [currentTab, setCurrentTab] = useState<NavigationTab>('scan');
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingStage, setLoadingStage] = useState<string>('');
@@ -19,6 +24,7 @@ export function App() {
   const [activeFilter, setActiveFilter] = useState<RuleStatus | 'ALL'>('ALL');
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const [isFieldEditorOpen, setIsFieldEditorOpen] = useState<boolean>(false);
+  const [isSaveAsApprovedOpen, setIsSaveAsApprovedOpen] = useState<boolean>(false);
   const [editingTargetRule, setEditingTargetRule] = useState<string | null>(null);
   const [selectedSampleId, setSelectedSampleId] = useState<string | undefined>(undefined);
 
@@ -136,7 +142,7 @@ export function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Filter evaluations (already ordered with REVIEW & MISSING on top)
+  // Filter evaluations
   const filteredEvaluations = result
     ? result.evaluations.filter((e) => {
         if (activeFilter === 'ALL') return true;
@@ -146,8 +152,10 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900">
-      {/* Header */}
+      {/* Header with Navigation */}
       <Header
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
         onSelectSample={handleSelectSample}
         onReset={handleReset}
         onOpenReport={() => setIsReportModalOpen(true)}
@@ -158,7 +166,7 @@ export function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col">
         {/* Error Banner */}
-        {errorMessage && (
+        {errorMessage && currentTab === 'scan' && (
           <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3 text-xs shadow-xs">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
@@ -168,117 +176,132 @@ export function App() {
           </div>
         )}
 
-        {/* Loading Overlay State */}
-        {isLoading && (
-          <div className="my-auto py-16 flex flex-col items-center justify-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-900">
-              <Loader2 className="w-8 h-8 animate-spin text-slate-800" />
-            </div>
-            <div className="text-center space-y-1">
-              <h3 className="text-sm font-bold text-slate-900">Analyzing Label</h3>
-              <p className="text-xs text-slate-500 font-mono">{loadingStage}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Step 1: Input Screen (When no active result & not loading) */}
-        {!result && !isLoading && (
-          <div className="my-auto py-6 space-y-6">
-            <div className="text-center max-w-xl mx-auto space-y-1.5">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-950">
-                Packaged Commodity Label Verification
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Upload or capture a label image to verify Legal Metrology Rule 6 statutory declarations.
-              </p>
-            </div>
-
-            {/* Uploader & Presets */}
-            <ImageUploader
-              onImageSelected={handleAnalyzeImage}
-              onSampleSelected={handleSelectSample}
-              isLoading={isLoading}
-            />
-          </div>
-        )}
-
-        {/* Step 2: Verification Results & Evidence Mapping View */}
-        {result && !isLoading && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Interactive Image Evidence Viewer (7 cols) */}
-            <div className="lg:col-span-7 space-y-4">
-              <ImageViewer
-                imageUrl={result.imageUrl}
-                fields={result.extractedFields}
-                evaluations={result.evaluations}
-                selectedRuleCode={selectedRuleCode}
-                onSelectRule={handleSelectRule}
-              />
-
-              {/* Package Details Bar */}
-              <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 font-medium">Source:</span>
-                  <span className="font-mono font-semibold text-slate-800">{result.imageFileName}</span>
+        {/* TAB 1: SCAN MODE */}
+        {currentTab === 'scan' && (
+          <>
+            {/* Loading Overlay State */}
+            {isLoading && (
+              <div className="my-auto py-16 flex flex-col items-center justify-center space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 shadow-md flex items-center justify-center text-slate-900">
+                  <Loader2 className="w-8 h-8 animate-spin text-slate-800" />
                 </div>
-                <div className="text-slate-500 font-mono text-[11px]">
-                  Text blocks: {result.ocrTokens.length}
+                <div className="text-center space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900">Analyzing Label</h3>
+                  <p className="text-xs text-slate-500 font-mono">{loadingStage}</p>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Right Column: Statutory Summary & Compliance Rule Cards (5 cols) */}
-            <div className="lg:col-span-5 space-y-4">
-              {/* Summary Stats & Categorical Tallies */}
-              <VerificationSummary
-                result={result}
-                activeFilter={activeFilter}
-                onFilterChange={setActiveFilter}
-                onOpenReport={() => setIsReportModalOpen(true)}
-                onOpenFieldEditor={() => {
-                  setEditingTargetRule(null);
-                  setIsFieldEditorOpen(true);
-                }}
-                onExportJson={handleExportJson}
-              />
-
-              {/* Rule Cards List */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
-                  <span>Showing {filteredEvaluations.length} of {result.evaluations.length} checks</span>
-                  {activeFilter !== 'ALL' && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveFilter('ALL')}
-                      className="text-blue-700 hover:underline font-semibold text-[11px]"
-                    >
-                      Clear filter
-                    </button>
-                  )}
+            {/* Step 1: Input Screen (When no active result & not loading) */}
+            {!result && !isLoading && (
+              <div className="my-auto py-6 space-y-6">
+                <div className="text-center max-w-xl mx-auto space-y-1.5">
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-950">
+                    Packaged Commodity Label Verification
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600">
+                    Upload or capture a label image to verify Legal Metrology Rule 6 statutory declarations.
+                  </p>
                 </div>
 
-                {filteredEvaluations.length === 0 ? (
-                  <div className="p-8 text-center rounded-xl bg-white border border-slate-200 text-slate-500 text-xs">
-                    No checks matching current filter.
+                {/* Uploader & Presets */}
+                <ImageUploader
+                  onImageSelected={handleAnalyzeImage}
+                  onSampleSelected={handleSelectSample}
+                  isLoading={isLoading}
+                />
+              </div>
+            )}
+
+            {/* Step 2: Verification Results & Evidence Mapping View */}
+            {result && !isLoading && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Interactive Image Evidence Viewer (7 cols) */}
+                <div className="lg:col-span-7 space-y-4">
+                  <ImageViewer
+                    imageUrl={result.imageUrl}
+                    fields={result.extractedFields}
+                    evaluations={result.evaluations}
+                    selectedRuleCode={selectedRuleCode}
+                    onSelectRule={handleSelectRule}
+                  />
+
+                  {/* Package Details Bar */}
+                  <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-medium">Source:</span>
+                      <span className="font-mono font-semibold text-slate-800">{result.imageFileName}</span>
+                    </div>
+                    <div className="text-slate-500 font-mono text-[11px]">
+                      Text blocks: {result.ocrTokens.length}
+                    </div>
                   </div>
-                ) : (
-                  filteredEvaluations.map((ev) => (
-                    <RuleCard
-                      key={ev.ruleCode}
-                      evaluation={ev}
-                      isSelected={selectedRuleCode === ev.ruleCode}
-                      onSelect={handleSelectRule}
-                      onEditField={(code) => {
-                        setEditingTargetRule(code);
-                        setIsFieldEditorOpen(true);
-                      }}
-                    />
-                  ))
-                )}
+                </div>
+
+                {/* Right Column: Statutory Summary & Compliance Rule Cards (5 cols) */}
+                <div className="lg:col-span-5 space-y-4">
+                  {/* Summary Stats & Categorical Tallies */}
+                  <VerificationSummary
+                    result={result}
+                    activeFilter={activeFilter}
+                    onFilterChange={setActiveFilter}
+                    onOpenReport={() => setIsReportModalOpen(true)}
+                    onOpenFieldEditor={() => {
+                      setEditingTargetRule(null);
+                      setIsFieldEditorOpen(true);
+                    }}
+                    onExportJson={handleExportJson}
+                    onSaveAsApproved={() => setIsSaveAsApprovedOpen(true)}
+                  />
+
+                  {/* Rule Cards List */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs text-slate-500 px-1 font-medium">
+                      <span>Showing {filteredEvaluations.length} of {result.evaluations.length} checks</span>
+                      {activeFilter !== 'ALL' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveFilter('ALL')}
+                          className="text-blue-700 hover:underline font-semibold text-[11px]"
+                        >
+                          Clear filter
+                        </button>
+                      )}
+                    </div>
+
+                    {filteredEvaluations.length === 0 ? (
+                      <div className="p-8 text-center rounded-xl bg-white border border-slate-200 text-slate-500 text-xs">
+                        No checks matching current filter.
+                      </div>
+                    ) : (
+                      filteredEvaluations.map((ev) => (
+                        <RuleCard
+                          key={ev.ruleCode}
+                          evaluation={ev}
+                          isSelected={selectedRuleCode === ev.ruleCode}
+                          onSelect={handleSelectRule}
+                          onEditField={(code) => {
+                            setEditingTargetRule(code);
+                            setIsFieldEditorOpen(true);
+                          }}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
+
+        {/* TAB 2: INSPECT MODE */}
+        {currentTab === 'inspect' && <InspectPage />}
+
+        {/* TAB 3: HISTORY */}
+        {currentTab === 'history' && <HistoryView />}
+
+        {/* TAB 4: ABOUT */}
+        {currentTab === 'about' && <AboutView />}
       </main>
 
       {/* Field Override Modal */}
@@ -298,6 +321,19 @@ export function App() {
           isOpen={isReportModalOpen}
           onClose={() => setIsReportModalOpen(false)}
           result={result}
+        />
+      )}
+
+      {/* Save as Approved Product Modal */}
+      {result && (
+        <SaveAsApprovedModal
+          isOpen={isSaveAsApprovedOpen}
+          onClose={() => setIsSaveAsApprovedOpen(false)}
+          extractedFields={result.extractedFields}
+          imageUrl={result.imageUrl}
+          onSaved={() => {
+            setCurrentTab('inspect');
+          }}
         />
       )}
     </div>

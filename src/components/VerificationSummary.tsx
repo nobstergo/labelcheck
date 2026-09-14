@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, MinusCircle, Download, FileText, Edit3 } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, MinusCircle, Download, FileText, Edit3, ShieldCheck } from 'lucide-react';
 import { RuleStatus, VerificationResult } from '../types';
 
 interface VerificationSummaryProps {
@@ -9,6 +9,7 @@ interface VerificationSummaryProps {
   onOpenReport: () => void;
   onOpenFieldEditor: () => void;
   onExportJson: () => void;
+  onSaveAsApproved?: () => void;
 }
 
 export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
@@ -17,7 +18,8 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
   onFilterChange,
   onOpenReport,
   onOpenFieldEditor,
-  onExportJson
+  onExportJson,
+  onSaveAsApproved
 }) => {
   const { summary } = result;
 
@@ -63,6 +65,19 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
             <Download className="w-3.5 h-3.5 text-slate-500" />
             <span>JSON</span>
           </button>
+
+          {onSaveAsApproved && (
+            <button
+              id="btn-save-approved"
+              type="button"
+              onClick={onSaveAsApproved}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-800 bg-white hover:bg-slate-50 text-xs font-semibold transition-colors shadow-2xs"
+              title="Save as Approved Product Reference for Inspect Mode"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
+              <span>Save as Approved</span>
+            </button>
+          )}
 
           <button
             id="btn-print-report"

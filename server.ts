@@ -187,14 +187,22 @@ STATUTORY FIELD MAPPING:
 If any field is NOT visible or absent on the package, do not output that field or leave rawValue empty.
 `;
 
-    // Try primary and fallback models in order
-    const candidateModels = ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-3.8-flash'];
+    // Primary and fallback models (prioritizing fast flash-lite to avoid 503 high-demand errors)
+    const candidateModels = [
+      'gemini-3.1-flash-lite',
+      'gemini-3-flash-preview',
+      'gemini-3.6-flash'
+    ];
     let lastError: any = null;
     let geminiResponse: any = null;
 
     for (const modelName of candidateModels) {
       try {
-        geminiResponse = await ai.models.generateContent({
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
+        );
+
+        const generatePromise = ai.models.generateContent({
           model: modelName,
           contents: {
             parts: [
@@ -255,7 +263,9 @@ If any field is NOT visible or absent on the package, do not output that field o
           }
         });
 
-        if (geminiResponse && geminiResponse.text) {
+        const resp: any = await Promise.race([generatePromise, timeoutPromise]);
+        if (resp && resp.text) {
+          geminiResponse = resp;
           break; // Success with this model!
         }
       } catch (err: any) {
