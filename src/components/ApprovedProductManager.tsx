@@ -126,33 +126,21 @@ export const ApprovedProductManager: React.FC<ApprovedProductManagerProps> = ({
             className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs hover:border-blue-300 hover:shadow-xs transition-all flex flex-col justify-between"
           >
             <div className="space-y-3">
-              {/* Card Header & Parent Thumbnail */}
+              {/* Card Header */}
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  {product.referenceImageUrl ? (
-                    <img
-                      src={product.referenceImageUrl}
-                      alt={product.name}
-                      className="w-12 h-14 object-cover rounded-lg border border-slate-200 shrink-0 shadow-2xs"
-                    />
-                  ) : (
-                    <div className="w-12 h-14 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
-                      <ImageIcon className="w-5 h-5" />
-                    </div>
-                  )}
-
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug truncate">
-                      {product.name}
-                    </h3>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-slate-900 leading-snug truncate">
+                    {product.name}
+                  </h3>
+                  <div className="flex items-center gap-2 mt-1">
                     {product.category && (
-                      <span className="inline-block mt-0.5 text-[11px] text-slate-500 font-medium">
+                      <span className="text-[11px] text-slate-500 font-medium">
                         {product.category}
                       </span>
                     )}
                     {product.referenceImageUrl && (
-                      <span className="inline-block text-[10px] text-blue-700 font-medium mt-0.5">
-                        ✓ Parent Reference Active
+                      <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium border border-slate-200">
+                        Parent Reference
                       </span>
                     )}
                   </div>

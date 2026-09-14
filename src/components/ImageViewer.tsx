@@ -113,10 +113,10 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
   return (
     <div
       id="visual-evidence-viewer"
-      className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-full min-h-[520px] shadow-sm select-none"
+      className="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-full min-h-[360px] sm:min-h-[520px] shadow-sm select-none w-full max-w-full"
     >
       {/* Top Toolbar */}
-      <div className="bg-slate-950/80 border-b border-slate-800 px-4 py-2.5 flex items-center justify-between text-xs text-slate-300">
+      <div className="bg-slate-950/80 border-b border-slate-800 px-3 py-2 sm:px-4 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-200">Label View</span>
           <span className="text-slate-500">|</span>
@@ -125,7 +125,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Toggle Bounding Boxes */}
           <button
             id="btn-toggle-boxes"
@@ -166,7 +166,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
-          <span className="font-mono text-[11px] text-slate-400 w-10 text-center">
+          <span className="font-mono text-[11px] text-slate-400 w-9 sm:w-10 text-center">
             {Math.round(zoom * 100)}%
           </span>
           <button
@@ -197,7 +197,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        className={`relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden p-4 ${
+        className={`relative flex-1 bg-slate-950 flex items-center justify-center overflow-hidden p-2 sm:p-4 w-full max-w-full ${
           zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
         }`}
       >
@@ -213,7 +213,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
           <img
             src={imageUrl}
             alt="Packaged commodity label"
-            className="max-h-[640px] w-auto object-contain block rounded-sm pointer-events-none"
+            className="max-h-[440px] sm:max-h-[640px] max-w-full w-auto object-contain block rounded-sm pointer-events-none"
           />
 
           {/* SVG Bounding Box Layer */}

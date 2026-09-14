@@ -127,6 +127,41 @@ export const InspectionLivePanel: React.FC<InspectionLivePanelProps> = ({
       );
     }
 
+    // Tampered / Scam Alert
+    if (currentResult.tamperAnalysis?.isTampered) {
+      return (
+        <div className="p-3.5 rounded-xl bg-red-950 border border-red-800 text-white flex items-center justify-between shadow-md animate-pulse">
+          <div className="space-y-0.5 min-w-0 pr-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white font-mono flex items-center gap-1">
+                <ShieldAlert className="w-3 h-3" />
+                {packetNum}: TAMPER ALERT
+              </span>
+              <span className="text-xs text-red-300 font-mono">
+                {currentResult.tamperAnalysis.tamperType.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <h4 className="text-xs font-bold text-red-100 truncate">
+              Physical Alteration or Sticker Detected
+            </h4>
+            <p className="text-[11px] text-red-200 truncate">
+              {currentResult.tamperAnalysis.details}
+            </p>
+          </div>
+          {onOpenEvidenceModal && (
+            <button
+              type="button"
+              onClick={() => onOpenEvidenceModal(currentResult)}
+              className="p-1.5 rounded-lg bg-red-800 hover:bg-red-700 text-white text-xs font-semibold shrink-0"
+              title="Inspect package evidence and scam details"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
     // Discrepancy / Flagged / Review
     return (
       <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 flex items-center justify-between shadow-2xs">
@@ -162,7 +197,7 @@ export const InspectionLivePanel: React.FC<InspectionLivePanelProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Product Reference Title & Parent Benchmark Thumbnail */}
+      {/* Product Reference Title */}
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
         <div className="min-w-0">
           <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500 block">
@@ -176,20 +211,14 @@ export const InspectionLivePanel: React.FC<InspectionLivePanelProps> = ({
           </p>
         </div>
 
-        {approvedProduct.referenceImageUrl && (
-          <div className="shrink-0 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg p-1.5 shadow-2xs">
-            <img
-              src={approvedProduct.referenceImageUrl}
-              alt="Parent Reference Thumbnail"
-              className="w-9 h-11 object-cover rounded border border-slate-200"
-            />
-            <div className="hidden sm:block text-[10px] text-slate-600 pr-1">
-              <span className="font-bold block text-slate-800">Master Scan</span>
-              <span className="font-mono text-emerald-700 block">{approvedProduct.fields.mrp || 'MRP'}</span>
-              <span className="font-mono block">{approvedProduct.fields.net_quantity || ''}</span>
-            </div>
-          </div>
-        )}
+        <div className="shrink-0 text-right">
+          <span className="text-xs font-mono font-bold text-emerald-700 block">
+            {approvedProduct.fields.mrp || 'MRP Target'}
+          </span>
+          <span className="text-[11px] font-mono text-slate-600 block">
+            {approvedProduct.fields.net_quantity || ''}
+          </span>
+        </div>
       </div>
 
       {/* Counters Grid */}

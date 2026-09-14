@@ -1,16 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Sparkles, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
-import { SAMPLE_PRODUCTS } from '../data/sampleProducts';
+import { Upload, Camera, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
 
 interface ImageUploaderProps {
   onImageSelected: (base64: string, fileName: string) => void;
-  onSampleSelected: (sampleId: string) => void;
   isLoading: boolean;
 }
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onImageSelected,
-  onSampleSelected,
   isLoading
 }) => {
   const [activeTab, setActiveTab] = useState<'upload' | 'camera'>('upload');
@@ -331,49 +328,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
           </div>
         )}
       </div>
-
-      {/* Sample Labels for Testing */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 uppercase tracking-wider">
-          <Sparkles className="w-3.5 h-3.5 text-slate-500" />
-          <span>Sample Labels for Testing</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {SAMPLE_PRODUCTS.map((sample) => (
-            <button
-              key={sample.id}
-              id={`btn-sample-${sample.id}`}
-              type="button"
-              onClick={() => onSampleSelected(sample.id)}
-              disabled={isLoading}
-              className="text-left p-3.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/80 transition-all flex items-start gap-3 group shadow-2xs"
-            >
-              <div className="w-12 h-15 rounded bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
-                <img
-                  src={sample.imageUrl}
-                  alt={sample.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-1 mb-1">
-                  <h4 className="text-xs font-bold text-slate-900 truncate">
-                    {sample.name}
-                  </h4>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200 shrink-0 font-medium">
-                    {sample.expectedOutcome}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                  {sample.description}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
+

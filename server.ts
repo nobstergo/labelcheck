@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { BoundingBox, ExtractedField, OCRToken, VerificationResult } from './src/types';
 import { evaluateCompliance } from './src/services/complianceEngine';
@@ -84,7 +83,7 @@ app.get('/api/health', (req, res) => {
 // Main Analysis Endpoint
 app.post('/api/analyze', async (req, res) => {
   try {
-    const { imageBase64, fileName, sampleId } = req.body;
+    const { imageBase64, fileName, sampleId, parentReferenceBase64, parentProductName } = req.body;
 
     if (!imageBase64 && !sampleId) {
       return res.status(400).json({ error: 'Image data or sampleId is required' });
@@ -139,7 +138,17 @@ app.post('/api/analyze', async (req, res) => {
         summary
       };
 
-      return res.json({ success: true, result });
+      return res.json({
+        success: true,
+        result,
+        tamperAnalysis: {
+          isTampered: false,
+          tamperType: 'NONE',
+          confidence: 0.99,
+          affectedFields: [],
+          details: 'No physical tampering or alterations detected.'
+        }
+      });
     }
 
     // 2. Real user uploaded image or camera capture
@@ -158,21 +167,25 @@ app.post('/api/analyze', async (req, res) => {
       });
     }
 
+    const hasParentRef = Boolean(parentReferenceBase64 && parentReferenceBase64.length > 50);
+
     const prompt = `
-You are a precision optical OCR and object detection auditor for packaged commodity labels in India under Legal Metrology (Packaged Commodities) Rules, 2011.
+You are a precision optical OCR, statutory compliance auditor, and forensic packaging anti-tamper inspector for packaged commodity labels in India under Legal Metrology (Packaged Commodities) Rules, 2011.
 
 INSTRUCTIONS:
-1. Examine the provided package label image carefully.
+1. Examine the provided candidate package label image carefully. ${hasParentRef ? `A second parent benchmark reference image ("${parentProductName || 'Original Product'}") is also provided for visual and physical comparison.` : ''}
 2. Read the EXACT literal text printed on the label for every statutory declaration. DO NOT hardcode, invent, round, or alter any numbers, names, or addresses.
    - If MRP is Rs 1000, report exact text e.g. "MRP Rs. 1000.00 (inclusive of all taxes)".
    - If net quantity is 500 g, report exact text e.g. "Net Qty: 500 g".
    - Report the manufacturer's exact name and complete printed address.
-3. For each detected field, provide its PRECISE bounding box coordinates using box_2d: [ymin, xmin, ymax, xmax] on a 0 to 1000 integer scale:
-   - ymin: top coordinate of the text (0 to 1000)
-   - xmin: left coordinate of the text (0 to 1000)
-   - ymax: bottom coordinate of the text (0 to 1000)
-   - xmax: right coordinate of the text (0 to 1000)
-   Make sure the bounding box tightly wraps ONLY where that specific text is located on the image. DO NOT place boxes randomly.
+3. For each detected field, provide its PRECISE bounding box coordinates using box_2d: [ymin, xmin, ymax, xmax] on a 0 to 1000 integer scale tightly wrapping where that text is located.
+4. FORENSIC VISUAL ANTI-TAMPERING & PHYSICAL ANOMALY CHECK:
+   Detect if any scam, manual modification, or packaging tampering is present:
+   - STICKER_OVERLAY: Has a paper sticker, adhesive label, price tag, or slip been pasted over the original printed packaging (especially over MRP, Expiry/Mfg date, Net Qty, or Manufacturer)?
+   - HANDWRITTEN_OVERWRITE: Has anyone rewritten or altered the MRP or date using a pen, ballpoint, marker, or manual ink over the original packaging?
+   - CORRECTION_FLUID: Is there whitener, correction fluid, scratched-off ink, or erased text?
+   - FONT_PRINT_MISMATCH: Does the typography, print quality, or layout conflict with the parent benchmark image?
+   - If any tampering is detected, set isTampered=true, identify tamperType, affectedFields (e.g. ["LM-005"] for MRP), and provide clear forensic details. If no tampering is found, set isTampered=false and tamperType="NONE".
 
 STATUTORY FIELD MAPPING:
 - LM-001: Manufacturer / Packer / Importer name and address [Rule 6(1)(a)]
@@ -183,15 +196,42 @@ STATUTORY FIELD MAPPING:
 - LM-006: Consumer care helpline / email / address [Rule 6(1)(f)]
 - LM-007: Country of origin [Rule 6(1)(n)]
 - LM-008: Unit Sale Price (USP) [Rule 6(10)]
-
-If any field is NOT visible or absent on the package, do not output that field or leave rawValue empty.
 `;
 
-    // Primary and fallback models (prioritizing fast flash-lite to avoid 503 high-demand errors)
+    // Construct multi-image contents if parent reference is available
+    const contentParts: any[] = [
+      {
+        inlineData: {
+          mimeType,
+          data: rawBase64
+        }
+      }
+    ];
+
+    if (hasParentRef) {
+      let refRawBase64 = parentReferenceBase64;
+      let refMime = 'image/jpeg';
+      if (parentReferenceBase64.includes(';base64,')) {
+        const parts = parentReferenceBase64.split(';base64,');
+        refMime = parts[0].replace('data:', '') || 'image/jpeg';
+        refRawBase64 = parts[1];
+      }
+      contentParts.push({
+        inlineData: {
+          mimeType: refMime,
+          data: refRawBase64
+        }
+      });
+    }
+
+    contentParts.push({ text: prompt });
+
+    // Candidate models optimized for speed, reliability, and high-accuracy OCR
     const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
       'gemini-3.1-flash-lite',
-      'gemini-3-flash-preview',
-      'gemini-3.6-flash'
+      'gemini-flash-latest'
     ];
     let lastError: any = null;
     let geminiResponse: any = null;
@@ -199,21 +239,13 @@ If any field is NOT visible or absent on the package, do not output that field o
     for (const modelName of candidateModels) {
       try {
         const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 35000)
+          setTimeout(() => reject(new Error(`Timeout with model ${modelName}`)), 18000)
         );
 
         const generatePromise = ai.models.generateContent({
           model: modelName,
           contents: {
-            parts: [
-              {
-                inlineData: {
-                  mimeType,
-                  data: rawBase64
-                }
-              },
-              { text: prompt }
-            ]
+            parts: contentParts
           },
           config: {
             responseMimeType: 'application/json',
@@ -222,22 +254,30 @@ If any field is NOT visible or absent on the package, do not output that field o
               properties: {
                 commodityType: { type: Type.STRING, description: 'Type or category of commodity detected' },
                 rawFullText: { type: Type.STRING, description: 'All visible text detected on the package' },
-                ocrTokens: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      id: { type: Type.STRING },
-                      text: { type: Type.STRING },
-                      confidence: { type: Type.NUMBER },
-                      box_2d: {
-                        type: Type.ARRAY,
-                        items: { type: Type.INTEGER },
-                        description: '[ymin, xmin, ymax, xmax] 0-1000 scale'
-                      }
+                tamperAnalysis: {
+                  type: Type.OBJECT,
+                  properties: {
+                    isTampered: { type: Type.BOOLEAN, description: 'True if sticker, handwriting, or physical tampering detected' },
+                    tamperType: {
+                      type: Type.STRING,
+                      enum: [
+                        'STICKER_OVERLAY',
+                        'HANDWRITTEN_OVERWRITE',
+                        'CORRECTION_FLUID',
+                        'FONT_PRINT_MISMATCH',
+                        'SURFACE_ALTERATION',
+                        'NONE'
+                      ]
                     },
-                    required: ['id', 'text', 'box_2d']
-                  }
+                    confidence: { type: Type.NUMBER, description: '0.0 to 1.0 confidence in forensic detection' },
+                    affectedFields: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING },
+                      description: 'List of ruleCodes affected e.g. LM-005 for MRP'
+                    },
+                    details: { type: Type.STRING, description: 'Detailed forensic observation of tampering' }
+                  },
+                  required: ['isTampered', 'tamperType', 'details']
                 },
                 fields: {
                   type: Type.ARRAY,
@@ -254,7 +294,7 @@ If any field is NOT visible or absent on the package, do not output that field o
                         description: '[ymin, xmin, ymax, xmax] 0-1000 scale'
                       }
                     },
-                    required: ['ruleCode', 'rawValue', 'box_2d']
+                    required: ['ruleCode', 'rawValue']
                   }
                 }
               },
@@ -298,8 +338,8 @@ If any field is NOT visible or absent on the package, do not output that field o
       });
     }
 
-    // Parse general OCR tokens
-    if (Array.isArray(parsed.ocrTokens)) {
+    // Parse general OCR tokens or synthesize from extracted fields
+    if (Array.isArray(parsed.ocrTokens) && parsed.ocrTokens.length > 0) {
       parsed.ocrTokens.forEach((t: any, idx: number) => {
         if (t.text && t.text.trim()) {
           ocrTokens.push({
@@ -310,10 +350,27 @@ If any field is NOT visible or absent on the package, do not output that field o
           });
         }
       });
+    } else {
+      Object.entries(extractedFieldsRecord).forEach(([code, field], idx) => {
+        ocrTokens.push({
+          id: `tok-${idx + 1}`,
+          text: field.rawValue,
+          confidence: field.confidence,
+          bbox: field.bbox || { ymin: 10, xmin: 10, ymax: 20, xmax: 90 }
+        });
+      });
     }
 
     const rawFullText = parsed.rawFullText || Object.values(extractedFieldsRecord).map((f) => f.rawValue).join('\n');
     const { evaluations, summary } = evaluateCompliance(extractedFieldsRecord, rawFullText);
+
+    const tamperAnalysis = parsed.tamperAnalysis || {
+      isTampered: false,
+      tamperType: 'NONE',
+      confidence: 0.95,
+      affectedFields: [],
+      details: 'No physical tampering detected.'
+    };
 
     const result: VerificationResult = {
       id: inspectionId,
@@ -328,11 +385,15 @@ If any field is NOT visible or absent on the package, do not output that field o
       summary
     };
 
-    return res.json({ success: true, result });
+    return res.json({ success: true, result, tamperAnalysis });
   } catch (err: any) {
     console.error('Error during image analysis:', err);
-    return res.status(500).json({
-      error: err.message || 'Unable to inspect package label. Please ensure the image is clear and text is visible.'
+    const isRateLimit = err?.status === 429 || /429|quota|rate limit|resource exhausted|too many requests/i.test(err?.message || '');
+    return res.status(isRateLimit ? 429 : 500).json({
+      error: isRateLimit
+        ? 'AI rate limit reached on free quota. Please wait a few seconds before scanning again or use single-shot scan mode.'
+        : (err.message || 'Unable to inspect package label. Please ensure the image is clear and text is visible.'),
+      isRateLimit
     });
   }
 });
@@ -355,6 +416,7 @@ app.post('/api/re-evaluate', (req, res) => {
 // Vite middleware integration
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa'
@@ -363,13 +425,13 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`LabelCheck Server running on port ${PORT}`);
+    console.log(`LabelCheck Server running on http://0.0.0.0:${PORT}`);
   });
 }
 

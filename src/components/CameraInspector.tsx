@@ -44,9 +44,9 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
-  // Continuous auto-inspect mode (default false to prevent continuous loop freezes)
+  // Continuous auto-inspect mode (default false to prevent continuous loop quota exhaustion)
   const [autoInspect, setAutoInspect] = useState<boolean>(false);
-  const [captureIntervalMs, setCaptureIntervalMs] = useState<number>(2500);
+  const [captureIntervalMs, setCaptureIntervalMs] = useState<number>(4500);
   const [flashEffect, setFlashEffect] = useState<boolean>(false);
   const [showSamplePicker, setShowSamplePicker] = useState<boolean>(false);
 
@@ -123,15 +123,34 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
 
       try {
         const canvas = canvasRef.current;
-        canvas.width = Math.min(1280, video.videoWidth);
-        canvas.height = Math.min(720, video.videoHeight);
+        const nativeWidth = video.videoWidth || 1280;
+        const nativeHeight = video.videoHeight || 720;
+        
+        // Preserve exact aspect ratio when scaling to optimal inspection resolution
+        const maxDimension = 1280;
+        let targetWidth = nativeWidth;
+        let targetHeight = nativeHeight;
+
+        if (targetWidth > maxDimension || targetHeight > maxDimension) {
+          if (targetWidth >= targetHeight) {
+            targetHeight = Math.round((nativeHeight * maxDimension) / nativeWidth);
+            targetWidth = maxDimension;
+          } else {
+            targetWidth = Math.round((nativeWidth * maxDimension) / nativeHeight);
+            targetHeight = maxDimension;
+          }
+        }
+
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Draw preserving true image geometry
+        ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
 
         // Convert frame to compressed JPEG data URL
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
         await onFrameCaptured(dataUrl);
       } catch (err) {
         console.error('Frame capture failed:', err);
@@ -263,7 +282,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
+    <div className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3 shadow-2xs w-full max-w-full overflow-hidden">
       {/* Viewport Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -282,9 +301,9 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
 
         {/* Parent Reference Badge */}
         {approvedProduct && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs">
-            <span className="text-slate-500 text-[10px] font-mono">Parent Benchmark:</span>
-            <span className="font-semibold text-slate-900 truncate max-w-[150px] sm:max-w-[200px]">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-xs max-w-full">
+            <span className="text-slate-500 text-[10px] font-mono shrink-0">Parent Benchmark:</span>
+            <span className="font-semibold text-slate-900 truncate max-w-[130px] sm:max-w-[200px]">
               {approvedProduct.name}
             </span>
           </div>
@@ -292,7 +311,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
       </div>
 
       {/* Main Viewport Container */}
-      <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-16/10 flex items-center justify-center border border-slate-800 shadow-inner">
+      <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-4/3 sm:aspect-16/10 flex items-center justify-center border border-slate-800 shadow-inner w-full max-w-full">
         {/* Live Video Element */}
         <video
           ref={videoRef}
@@ -314,33 +333,33 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
 
         {/* Framing & Viewfinder HUD Overlay */}
         {hasPermission && (
-          <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-10">
+          <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 sm:p-4 z-10">
             {/* Top Bar inside Viewfinder */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               {renderStatusBadge()}
 
               {autoInspect && (
-                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700 backdrop-blur-xs">
-                  AUTO-LOOP ON ({captureIntervalMs / 1000}s)
+                <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-700 backdrop-blur-xs shrink-0">
+                  AUTO-LOOP ({captureIntervalMs / 1000}s)
                 </span>
               )}
             </div>
 
             {/* Visual Guideline Box */}
-            <div className="relative mx-auto w-4/5 h-3/5 border-2 border-dashed border-white/40 rounded-lg flex flex-col justify-between p-2.5">
-              <div className="flex justify-between text-[10px] font-mono text-white/70">
+            <div className="relative mx-auto w-[85%] sm:w-4/5 h-3/5 border-2 border-dashed border-white/40 rounded-lg flex flex-col justify-between p-2 sm:p-2.5">
+              <div className="flex justify-between text-[9px] sm:text-[10px] font-mono text-white/70">
                 <span>[INSPECTION TARGET]</span>
-                <span>{approvedProduct?.name ? approvedProduct.name.slice(0, 18) : 'PACKAGING'}</span>
+                <span className="truncate max-w-[120px]">{approvedProduct?.name ? approvedProduct.name.slice(0, 18) : 'PACKAGING'}</span>
               </div>
-              <div className="flex justify-between items-end text-[9px] font-mono text-white/50">
-                <span>ALIGN MRP & STATUTORY DECLARATIONS</span>
-                <span>TAP INSPECT NEXT</span>
+              <div className="flex justify-between items-end text-[8px] sm:text-[9px] font-mono text-white/50">
+                <span className="hidden xs:inline">ALIGN STATUTORY DECLARATIONS</span>
+                <span>TAP INSPECT</span>
               </div>
             </div>
 
             {/* Bottom Status text inside viewfinder */}
-            <div className="text-center">
-              <span className="inline-block px-3 py-1 rounded bg-slate-950/80 backdrop-blur-xs text-[11px] text-slate-200 border border-slate-800">
+            <div className="text-center px-1">
+              <span className="inline-block px-2.5 py-1 rounded bg-slate-950/80 backdrop-blur-xs text-[10px] sm:text-[11px] text-slate-200 border border-slate-800 truncate max-w-full">
                 {statusMessage || 'Position package and click "Inspect Next Item"'}
               </span>
             </div>
@@ -349,7 +368,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
 
         {/* Camera Permission / Fallback State */}
         {hasPermission === false && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-white bg-slate-900/90 z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 sm:p-6 text-center text-white bg-slate-900/90 z-10">
             <AlertCircle className="w-8 h-8 text-amber-400" />
             <div className="space-y-1 max-w-sm">
               <h4 className="text-sm font-bold">Camera Mode Unavailable</h4>
@@ -357,7 +376,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
                 {errorMessage || 'Camera access not granted. You can test inspections using sample packages or file upload below.'}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 onClick={() => startCamera(selectedDeviceId)}
@@ -372,7 +391,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-md text-xs font-semibold hover:bg-blue-700 transition-colors shadow-xs"
               >
                 <ImageIcon className="w-3.5 h-3.5" />
-                <span>Pick Sample Package</span>
+                <span>Pick Sample</span>
               </button>
             </div>
           </div>
@@ -380,26 +399,26 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
       </div>
 
       {/* Camera and Inspection Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-slate-100 w-full">
         {/* Primary Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* Main Inspection Trigger */}
           <button
             type="button"
             onClick={() => captureAndAnalyzeFrame(true)}
             disabled={isAnalyzing}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold transition-all shadow-xs disabled:opacity-50 active:scale-95"
+            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold transition-all shadow-xs disabled:opacity-50 active:scale-95"
             title="Inspect current camera frame immediately"
           >
             {isAnalyzing ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Comparing with Parent...</span>
+                <span>Comparing...</span>
               </>
             ) : (
               <>
                 <Camera className="w-3.5 h-3.5" />
-                <span>Inspect Next Item</span>
+                <span>Inspect Next</span>
               </>
             )}
           </button>
@@ -408,7 +427,7 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
           <button
             type="button"
             onClick={() => setAutoInspect((prev) => !prev)}
-            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors border ${
+            className={`inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg text-xs font-semibold transition-colors border ${
               autoInspect
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -417,12 +436,12 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
             {autoInspect ? (
               <>
                 <Pause className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Auto-Loop: ON</span>
+                <span>Loop: ON</span>
               </>
             ) : (
               <>
                 <Play className="w-3.5 h-3.5 text-slate-500" />
-                <span>Auto-Loop: OFF</span>
+                <span>Loop: OFF</span>
               </>
             )}
           </button>
@@ -432,11 +451,12 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isAnalyzing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
             title="Inspect an image file"
           >
             <Upload className="w-3.5 h-3.5 text-slate-500" />
-            <span>Upload Test Photo</span>
+            <span className="hidden sm:inline">Upload Test Photo</span>
+            <span className="sm:hidden">Upload</span>
           </button>
           <input
             ref={fileInputRef}
@@ -451,33 +471,34 @@ export const CameraInspector: React.FC<CameraInspectorProps> = ({
             type="button"
             onClick={() => setShowSamplePicker((prev) => !prev)}
             disabled={isAnalyzing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
           >
             <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
-            <span>Pick Test Package</span>
+            <span className="hidden sm:inline">Pick Test Package</span>
+            <span className="sm:hidden">Samples</span>
           </button>
 
           {/* Stop Inspection Session */}
           <button
             type="button"
             onClick={onStopInspection}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-medium transition-colors ml-auto sm:ml-0"
+            className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-medium transition-colors ml-auto sm:ml-0"
           >
             <Square className="w-3.5 h-3.5 text-slate-500" />
-            <span>End Session</span>
+            <span>End</span>
           </button>
         </div>
 
         {/* Right: Camera device selector */}
         {devices.length > 1 && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-600 ml-auto">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 w-full sm:w-auto justify-end">
             <select
               value={selectedDeviceId}
               onChange={(e) => {
                 setSelectedDeviceId(e.target.value);
                 startCamera(e.target.value);
               }}
-              className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50 font-medium"
+              className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-slate-50 font-medium max-w-full"
             >
               {devices.map((d, i) => (
                 <option key={d.deviceId} value={d.deviceId}>

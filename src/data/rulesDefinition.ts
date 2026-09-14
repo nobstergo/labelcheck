@@ -61,8 +61,8 @@ export const LEGAL_METROLOGY_RULES: ComplianceRule[] = [
     code: 'LM-008',
     title: 'Unit Sale Price (USP)',
     citation: 'Rule 6(10) (2021 Amendment)',
-    description: 'Unit sale price in rupees and paise per gram, kilogram, milliliter, liter, or piece where total quantity exceeds threshold or sold by measure.',
-    mandatory: true,
-    notes: 'Applicable to pre-packaged commodities sold by weight/measure/count (e.g. ₹ 0.40 / g or ₹ 40 / 100 g).'
+    description: 'Unit sale price in rupees and paise per gram, kilogram, milliliter, liter, or piece where total quantity exceeds threshold or sold by measure (conditional).',
+    mandatory: false,
+    notes: 'Conditional under Rule 6(10) (applicable for packages containing > 1 unit/measure; exempt for single-unit packages where retail price equals unit price).'
   }
 ];

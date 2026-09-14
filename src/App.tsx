@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { ImageUploader } from './components/ImageUploader';
 import { ImageViewer } from './components/ImageViewer';
@@ -10,11 +10,15 @@ import { InspectPage } from './components/InspectPage';
 import { HistoryView } from './components/HistoryView';
 import { AboutView } from './components/AboutView';
 import { SaveAsApprovedModal } from './components/SaveAsApprovedModal';
-import { ExtractedField, NavigationTab, RuleStatus, VerificationResult } from './types';
+import { LoginView } from './components/LoginView';
+import { ExtractedField, NavigationTab, RuleStatus, ScanHistoryItem, UserProfile, VerificationResult } from './types';
 import { evaluateCompliance } from './services/complianceEngine';
+import { getCurrentUser, setCurrentUser as saveCurrentUser, logoutUser, saveScanHistory } from './services/accountStorage';
+import { auth, fbOnAuthStateChanged, signOutFirebase } from './services/firebase';
 import { AlertCircle, Loader2 } from 'lucide-react';
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getCurrentUser());
   const [currentTab, setCurrentTab] = useState<NavigationTab>('scan');
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -26,14 +30,54 @@ export function App() {
   const [isFieldEditorOpen, setIsFieldEditorOpen] = useState<boolean>(false);
   const [isSaveAsApprovedOpen, setIsSaveAsApprovedOpen] = useState<boolean>(false);
   const [editingTargetRule, setEditingTargetRule] = useState<string | null>(null);
-  const [selectedSampleId, setSelectedSampleId] = useState<string | undefined>(undefined);
+  const [reportModalResult, setReportModalResult] = useState<VerificationResult | null>(null);
+
+  // Synchronize Firebase Auth state changes
+  useEffect(() => {
+    const unsubscribe = fbOnAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        const userProfile: UserProfile = {
+          id: fbUser.uid,
+          name: fbUser.displayName || fbUser.email?.split('@')[0] || 'Google User',
+          email: fbUser.email || 'user@gmail.com',
+          avatarUrl:
+            fbUser.photoURL ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              fbUser.displayName || 'Google User'
+            )}&background=0F172A&color=38BDF8&bold=true`,
+          provider: 'google',
+          lastLoginAt: new Date().toISOString()
+        };
+        saveCurrentUser(userProfile);
+        setCurrentUser(userProfile);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogin = (user: UserProfile) => {
+    saveCurrentUser(user);
+    setCurrentUser(user);
+    setCurrentTab('scan');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOutFirebase();
+    } catch (err) {
+      console.warn('Firebase signout note:', err);
+    }
+    logoutUser();
+    setCurrentUser(null);
+    setResult(null);
+    setErrorMessage(null);
+  };
 
   // Send image to /api/analyze
   const handleAnalyzeImage = async (base64: string, fileName: string) => {
     setIsLoading(true);
     setErrorMessage(null);
     setLoadingStage('Scanning label and detecting declarations...');
-    setSelectedSampleId(undefined);
 
     try {
       const res = await fetch('/api/analyze', {
@@ -50,43 +94,27 @@ export function App() {
         throw new Error(data.error || 'Label analysis failed. Please try again.');
       }
 
-      setResult(data.result);
+      const scanResult: VerificationResult = data.result;
+      setResult(scanResult);
       setSelectedRuleCode(null);
       setActiveFilter('ALL');
+
+      // Automatically persist to account history
+      const historyRecord: ScanHistoryItem = {
+        id: scanResult.id || `scan-${Date.now().toString(36)}`,
+        timestamp: new Date().toISOString(),
+        imageFileName: fileName,
+        commodityType: scanResult.commodityType || 'Packaged Commodity',
+        summary: scanResult.summary,
+        evaluations: scanResult.evaluations,
+        extractedFields: scanResult.extractedFields,
+        imageUrl: scanResult.imageUrl,
+        userId: currentUser?.id
+      };
+      saveScanHistory(historyRecord, currentUser?.id);
     } catch (err: any) {
       console.error('Analysis error:', err);
       setErrorMessage(err.message || 'Unable to analyze image. Please ensure the label image is clear and legible.');
-    } finally {
-      setIsLoading(false);
-      setLoadingStage('');
-    }
-  };
-
-  // Select sample preset
-  const handleSelectSample = async (sampleId: string) => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    setLoadingStage('Loading sample label...');
-    setSelectedSampleId(sampleId);
-
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sampleId })
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load sample label');
-      }
-
-      setResult(data.result);
-      setSelectedRuleCode(null);
-      setActiveFilter('ALL');
-    } catch (err: any) {
-      console.error('Sample loading error:', err);
-      setErrorMessage(err.message || 'Failed to load sample');
     } finally {
       setIsLoading(false);
       setLoadingStage('');
@@ -99,7 +127,6 @@ export function App() {
     setErrorMessage(null);
     setSelectedRuleCode(null);
     setActiveFilter('ALL');
-    setSelectedSampleId(undefined);
   };
 
   // Handle interactive selection from viewer or card
@@ -121,12 +148,27 @@ export function App() {
 
     const { evaluations, summary } = evaluateCompliance(updatedFields, fullText);
 
-    setResult({
+    const updated: VerificationResult = {
       ...result,
       extractedFields: updatedFields,
       evaluations,
       summary
-    });
+    };
+    setResult(updated);
+
+    // Update history record as well
+    const historyRecord: ScanHistoryItem = {
+      id: updated.id,
+      timestamp: new Date().toISOString(),
+      imageFileName: updated.imageFileName,
+      commodityType: updated.commodityType || 'Packaged Commodity',
+      summary: updated.summary,
+      evaluations: updated.evaluations,
+      extractedFields: updated.extractedFields,
+      imageUrl: updated.imageUrl,
+      userId: currentUser?.id
+    };
+    saveScanHistory(historyRecord, currentUser?.id);
   };
 
   // Export JSON
@@ -142,6 +184,29 @@ export function App() {
     URL.revokeObjectURL(url);
   };
 
+  // Open report modal from history item
+  const handleOpenReportForScan = (scan: ScanHistoryItem) => {
+    const historicalResult: VerificationResult = {
+      id: scan.id,
+      timestamp: scan.timestamp,
+      imageFileName: scan.imageFileName,
+      imageUrl: scan.imageUrl,
+      imageDimensions: { width: 800, height: 1000 },
+      ocrTokens: [],
+      extractedFields: scan.extractedFields,
+      evaluations: scan.evaluations,
+      summary: scan.summary,
+      commodityType: scan.commodityType
+    };
+    setReportModalResult(historicalResult);
+    setIsReportModalOpen(true);
+  };
+
+  // If not logged in, present Google Auth login view
+  if (!currentUser) {
+    return <LoginView onLoginSuccess={handleLogin} />;
+  }
+
   // Filter evaluations
   const filteredEvaluations = result
     ? result.evaluations.filter((e) => {
@@ -151,20 +216,23 @@ export function App() {
     : [];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900">
-      {/* Header with Navigation */}
+    <div className="min-h-screen bg-slate-100 flex flex-col font-sans antialiased text-slate-900 w-full max-w-full overflow-x-hidden">
+      {/* Header with Navigation and Account */}
       <Header
         currentTab={currentTab}
         onTabChange={setCurrentTab}
-        onSelectSample={handleSelectSample}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         onReset={handleReset}
-        onOpenReport={() => setIsReportModalOpen(true)}
+        onOpenReport={() => {
+          setReportModalResult(result);
+          setIsReportModalOpen(true);
+        }}
         hasResult={Boolean(result)}
-        selectedSampleId={selectedSampleId}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 flex flex-col overflow-x-hidden">
         {/* Error Banner */}
         {errorMessage && currentTab === 'scan' && (
           <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 flex items-start gap-3 text-xs shadow-xs">
@@ -194,9 +262,9 @@ export function App() {
 
             {/* Step 1: Input Screen (When no active result & not loading) */}
             {!result && !isLoading && (
-              <div className="my-auto py-6 space-y-6">
-                <div className="text-center max-w-xl mx-auto space-y-1.5">
-                  <h2 className="text-2xl font-bold tracking-tight text-slate-950">
+              <div className="my-auto py-6 space-y-6 w-full max-w-full">
+                <div className="text-center max-w-xl mx-auto space-y-1.5 px-2">
+                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950">
                     Packaged Commodity Label Verification
                   </h2>
                   <p className="text-xs sm:text-sm text-slate-600">
@@ -204,10 +272,9 @@ export function App() {
                   </p>
                 </div>
 
-                {/* Uploader & Presets */}
+                {/* Uploader */}
                 <ImageUploader
                   onImageSelected={handleAnalyzeImage}
-                  onSampleSelected={handleSelectSample}
                   isLoading={isLoading}
                 />
               </div>
@@ -215,9 +282,9 @@ export function App() {
 
             {/* Step 2: Verification Results & Evidence Mapping View */}
             {result && !isLoading && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start w-full max-w-full">
                 {/* Left Column: Interactive Image Evidence Viewer (7 cols) */}
-                <div className="lg:col-span-7 space-y-4">
+                <div className="lg:col-span-7 space-y-4 w-full min-w-0">
                   <ImageViewer
                     imageUrl={result.imageUrl}
                     fields={result.extractedFields}
@@ -227,25 +294,28 @@ export function App() {
                   />
 
                   {/* Package Details Bar */}
-                  <div className="bg-white rounded-lg border border-slate-200 px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 font-medium">Source:</span>
-                      <span className="font-mono font-semibold text-slate-800">{result.imageFileName}</span>
+                  <div className="bg-white rounded-lg border border-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 text-xs flex flex-wrap items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-slate-500 font-medium shrink-0">Source:</span>
+                      <span className="font-mono font-semibold text-slate-800 truncate">{result.imageFileName}</span>
                     </div>
-                    <div className="text-slate-500 font-mono text-[11px]">
+                    <div className="text-slate-500 font-mono text-[11px] shrink-0">
                       Text blocks: {result.ocrTokens.length}
                     </div>
                   </div>
                 </div>
 
                 {/* Right Column: Statutory Summary & Compliance Rule Cards (5 cols) */}
-                <div className="lg:col-span-5 space-y-4">
+                <div className="lg:col-span-5 space-y-4 w-full min-w-0">
                   {/* Summary Stats & Categorical Tallies */}
                   <VerificationSummary
                     result={result}
                     activeFilter={activeFilter}
                     onFilterChange={setActiveFilter}
-                    onOpenReport={() => setIsReportModalOpen(true)}
+                    onOpenReport={() => {
+                      setReportModalResult(result);
+                      setIsReportModalOpen(true);
+                    }}
                     onOpenFieldEditor={() => {
                       setEditingTargetRule(null);
                       setIsFieldEditorOpen(true);
@@ -295,10 +365,15 @@ export function App() {
         )}
 
         {/* TAB 2: INSPECT MODE */}
-        {currentTab === 'inspect' && <InspectPage />}
+        {currentTab === 'inspect' && <InspectPage currentUser={currentUser} />}
 
         {/* TAB 3: HISTORY */}
-        {currentTab === 'history' && <HistoryView />}
+        {currentTab === 'history' && (
+          <HistoryView
+            currentUser={currentUser}
+            onOpenReportForScan={handleOpenReportForScan}
+          />
+        )}
 
         {/* TAB 4: ABOUT */}
         {currentTab === 'about' && <AboutView />}
@@ -316,11 +391,14 @@ export function App() {
       )}
 
       {/* Inspection Report Modal */}
-      {result && (
+      {(reportModalResult || result) && (
         <ReportModal
           isOpen={isReportModalOpen}
-          onClose={() => setIsReportModalOpen(false)}
-          result={result}
+          onClose={() => {
+            setIsReportModalOpen(false);
+            setReportModalResult(null);
+          }}
+          result={reportModalResult || result!}
         />
       )}
 

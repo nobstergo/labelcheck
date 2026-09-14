@@ -24,9 +24,9 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
   const { summary } = result;
 
   return (
-    <div id="verification-summary-card" className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+    <div id="verification-summary-card" className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4 w-full max-w-full overflow-hidden">
       {/* Top Header: Inspection Metadata */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3 w-full">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
@@ -43,23 +43,23 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
           <button
             id="btn-edit-fields"
             type="button"
             onClick={onOpenFieldEditor}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
             title="Inspect and edit OCR detected values"
           >
             <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-            <span>Edit Fields</span>
+            <span>Edit</span>
           </button>
 
           <button
             id="btn-export-json"
             type="button"
             onClick={onExportJson}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
+            className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors"
             title="Export verification JSON data"
           >
             <Download className="w-3.5 h-3.5 text-slate-500" />
@@ -71,11 +71,11 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
               id="btn-save-approved"
               type="button"
               onClick={onSaveAsApproved}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-800 bg-white hover:bg-slate-50 text-xs font-semibold transition-colors shadow-2xs"
+              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-md border border-slate-300 text-slate-800 bg-white hover:bg-slate-50 text-xs font-semibold transition-colors shadow-2xs"
               title="Save as Approved Product Reference for Inspect Mode"
             >
               <ShieldCheck className="w-3.5 h-3.5 text-slate-600" />
-              <span>Save as Approved</span>
+              <span>Save Reference</span>
             </button>
           )}
 
@@ -83,10 +83,10 @@ export const VerificationSummary: React.FC<VerificationSummaryProps> = ({
             id="btn-print-report"
             type="button"
             onClick={onOpenReport}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold transition-colors shadow-xs"
+            className="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-md bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold transition-colors shadow-xs"
           >
             <FileText className="w-3.5 h-3.5" />
-            <span>Inspection Report</span>
+            <span>Report</span>
           </button>
         </div>
       </div>

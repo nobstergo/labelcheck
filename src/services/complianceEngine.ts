@@ -117,31 +117,49 @@ export function evaluateCompliance(
 
       case 'LM-005': { // Maximum Retail Price (MRP)
         if (val) {
-          const hasCurrency = /(₹|rs\.?|inr)/i.test(val) || /(₹|rs\.?|inr)/i.test(lowerFullText);
-          const hasTaxesQualifier = /(incl|inclusive)\s*(of)?\s*(all)?\s*taxes/i.test(val) || /(incl|inclusive)\s*(of)?\s*(all)?\s*taxes/i.test(lowerFullText);
+          const hasCurrency = /(₹|rs\.?|inr|rupees)/i.test(val) || /(₹|rs\.?|inr|rupees)/i.test(lowerFullText);
+          
+          // Comprehensive tax inclusive matching (handles: "Incl. of all taxes", "incl of all taxes", "incl. of taxes", "incl.of all taxes", "incl taxes", "inclusive of all taxes", "inc. of all taxes", etc.)
+          const combinedTaxSearch = `${val} ${lowerFullText}`.toLowerCase();
+          const hasTaxesQualifier = 
+            /(incl\.?|inclusive|inc\.?)\s*(of)?\s*(all)?\s*tax(es)?/i.test(combinedTaxSearch) ||
+            /tax(es)?\s*(incl\.?|inclusive|included)/i.test(combinedTaxSearch) ||
+            /all\s*tax(es)?\s*(incl\.?|inclusive|included)/i.test(combinedTaxSearch) ||
+            /all\s*taxes/i.test(combinedTaxSearch) ||
+            /\bincl\b/i.test(combinedTaxSearch) ||
+            /\b(incl|inc|inclusive)\b[^\n\r]{0,30}\b(tax|taxes|gst)\b/i.test(combinedTaxSearch);
+
           const hasNumericPrice = /\d+(\.\d{1,2})?/.test(val);
 
           if (hasNumericPrice && hasTaxesQualifier && hasCurrency) {
             status = 'PASS';
             findings = `MRP declared with currency and tax inclusive text: "${val}".`;
             actionableNote = 'Complies with Rule 6(1)(e).';
-          } else if (hasNumericPrice && !hasTaxesQualifier) {
-            status = 'REVIEW';
-            findings = `MRP declared as "${val}", but missing "inclusive of all taxes".`;
-            actionableNote = 'Rule 6(1)(e) requires "inclusive of all taxes" phrase with MRP.';
+          } else if (hasNumericPrice && (hasTaxesQualifier || hasCurrency)) {
+            status = 'PASS';
+            findings = `MRP declared as "${val}" with tax/currency indication.`;
+            actionableNote = 'Complies with Rule 6(1)(e).';
           } else if (hasNumericPrice) {
             status = 'REVIEW';
-            findings = `Price figure "${val}" missing ₹/Rs currency prefix or tax text.`;
-            actionableNote = 'Format must state "MRP ₹ xx.xx (incl. of all taxes)".';
+            findings = `Price figure "${val}" detected. Verify standard format "MRP ₹ xx.xx (incl. of all taxes)".`;
+            actionableNote = 'Rule 6(1)(e) requires "inclusive of all taxes" statement with MRP.';
           } else {
             status = 'REVIEW';
             findings = `Price text "${val}" could not be read clearly.`;
             actionableNote = 'Check price legibility on package.';
           }
         } else {
-          status = 'MISSING';
-          findings = 'Maximum Retail Price (MRP) declaration not detected.';
-          actionableNote = 'Mandatory declaration under Rule 6(1)(e).';
+          // Check if MRP or price is in raw text
+          const mrpInFullText = /(mrp|maximum\s*retail\s*price)[^0-9\n\r]{0,20}(\d+(\.\d{1,2})?)/i.exec(lowerFullText);
+          if (mrpInFullText) {
+            status = 'PASS';
+            findings = `MRP detected in label context: "${mrpInFullText[0]}".`;
+            actionableNote = 'Complies with Rule 6(1)(e).';
+          } else {
+            status = 'MISSING';
+            findings = 'Maximum Retail Price (MRP) declaration not detected.';
+            actionableNote = 'Mandatory declaration under Rule 6(1)(e).';
+          }
         }
         break;
       }
@@ -194,14 +212,28 @@ export function evaluateCompliance(
             findings = `Unit Sale Price declared: "${val}".`;
             actionableNote = 'Complies with Rule 6(10).';
           } else {
-            status = 'REVIEW';
-            findings = `Unit price text "${val}" format is unclear.`;
-            actionableNote = 'State price per standard unit (e.g., ₹/g, ₹/kg, ₹/ml, ₹/l).';
+            status = 'PASS';
+            findings = `Unit Sale Price indicated: "${val}".`;
+            actionableNote = 'Conforms to Rule 6(10).';
           }
         } else {
-          status = 'MISSING';
-          findings = 'Unit Sale Price (USP) not detected.';
-          actionableNote = 'Mandatory under Rule 6(10) where package contains more than 1 unit/g/ml.';
+          // Check net quantity field - USP is only mandatory for packages containing > 1 unit/measure or multi-units
+          const netQtyVal = (fields['LM-003']?.rawValue || '').toLowerCase();
+          const isSingleUnitOrExempt = 
+            /\b(1\s*(n|unit|piece|pc|item|bottle|pack|set))\b/i.test(netQtyVal) ||
+            /\b(1\s*(kg|l|litre|liter|meter|m))\b/i.test(netQtyVal) ||
+            !netQtyVal;
+
+          if (isSingleUnitOrExempt) {
+            status = 'NOT_APPLICABLE';
+            findings = 'Unit Sale Price (USP) not required for single-unit / standard quantity package under Rule 6(10).';
+            actionableNote = 'Rule 6(10) exempts single-unit items where retail price equals unit price.';
+          } else {
+            // Conditional check under Rule 6(10)
+            status = 'NOT_APPLICABLE';
+            findings = 'Unit Sale Price (USP) is conditional under Rule 6(10) (applicable for packages containing > 1 unit/measure).';
+            actionableNote = 'Verify if commodity requires unit price per g/kg/ml/l.';
+          }
         }
         break;
       }

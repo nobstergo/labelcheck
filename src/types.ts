@@ -106,6 +106,22 @@ export interface ApprovedProduct {
 export type ComparisonFieldStatus = 'MATCH' | 'MISMATCH' | 'MISSING' | 'REVIEW';
 export type InspectionPackageStatus = 'PASS' | 'FLAG' | 'REVIEW' | 'WAITING' | 'FOREIGN_PRODUCT';
 
+export type TamperType =
+  | 'STICKER_OVERLAY'
+  | 'HANDWRITTEN_OVERWRITE'
+  | 'CORRECTION_FLUID'
+  | 'FONT_PRINT_MISMATCH'
+  | 'SURFACE_ALTERATION'
+  | 'NONE';
+
+export interface TamperAnalysis {
+  isTampered: boolean;
+  tamperType: TamperType;
+  confidence: number; // 0 to 1
+  affectedFields: string[]; // e.g. ['LM-005', 'mrp']
+  details: string;
+}
+
 export interface FieldComparisonResult {
   fieldKey: keyof ApprovedProductFields;
   fieldName: string;
@@ -116,6 +132,8 @@ export interface FieldComparisonResult {
   differenceNote?: string;
   bbox?: BoundingBox;
   confidence: number;
+  isTampered?: boolean;
+  tamperNote?: string;
 }
 
 export interface InspectionResult {
@@ -139,6 +157,34 @@ export interface InspectionResult {
   resolutionNote?: string;
   matchedCount?: number;
   totalParametersCount?: number;
+  tamperAnalysis?: TamperAnalysis;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
+  provider: 'google';
+  lastLoginAt: string;
+}
+
+export interface ScanHistoryItem {
+  id: string;
+  userId: string;
+  timestamp: string;
+  imageFileName: string;
+  imageUrl?: string;
+  commodityType: string;
+  summary: {
+    passCount: number;
+    reviewCount: number;
+    missingCount: number;
+    notApplicableCount: number;
+    totalRules: number;
+  };
+  evaluations: RuleEvaluation[];
+  extractedFields: Record<string, ExtractedField>;
 }
 
 export interface InspectionCounters {

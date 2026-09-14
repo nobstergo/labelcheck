@@ -45,9 +45,9 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3 shadow-xs">
+    <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 space-y-3 shadow-xs w-full max-w-full overflow-hidden">
       {/* Header with Title and PDF Export Button */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3 w-full">
         <div>
           <div className="flex items-center gap-2">
             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
@@ -66,17 +66,17 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
           <button
             type="button"
             onClick={onExportPdf}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all shadow-2xs shrink-0"
+            className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all shadow-2xs shrink-0 self-start sm:self-auto"
             title="Export session to PDF report"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export PDF Report</span>
+            <span>Export PDF</span>
           </button>
         )}
       </div>
 
       {/* Packet Entries List */}
-      <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+      <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1 w-full">
         {records.map((rec, index) => {
           const packetNum = rec.packetNumber || records.length - index;
           const isResolved = rec.isResolved;
@@ -102,7 +102,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
           return (
             <div
               key={rec.id}
-              className={`p-3 rounded-xl border text-xs transition-all shadow-2xs ${
+              className={`p-2.5 sm:p-3 rounded-xl border text-xs transition-all shadow-2xs w-full ${
                 isResolved
                   ? 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50/70'
                   : isPass
@@ -114,7 +114,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                   : 'border-amber-200 bg-amber-50/30 hover:bg-amber-50/60'
               }`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
                 {/* Left info: Identifier, Status, Thumbnail, Time */}
                 <div
                   onClick={() => onSelectRecord(rec)}
@@ -125,22 +125,24 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                     <img
                       src={rec.capturedImageUrl}
                       alt={`Packet #${packetNum}`}
-                      className="w-11 h-13 object-cover rounded-md border border-slate-200 shrink-0 bg-slate-950 mt-0.5"
+                      className="w-10 h-12 object-cover rounded-md border border-slate-200 shrink-0 bg-slate-950 mt-0.5"
                     />
                   )}
 
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 space-y-1 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
                       {/* Packet unique identifier */}
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">
+                      <span className="font-mono text-[11px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded bg-slate-900 text-white">
                         Packet #{packetNum}
                       </span>
 
                       {/* Status badge */}
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                        className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
                           isResolved
                             ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : rec.tamperAnalysis?.isTampered
+                            ? 'bg-red-900 text-white font-bold'
                             : isPass
                             ? 'bg-emerald-100 text-emerald-800'
                             : isForeign
@@ -154,6 +156,11 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                           <>
                             <CheckCheck className="w-3 h-3 text-emerald-600" />
                             <span>PASSED (Resolved)</span>
+                          </>
+                        ) : rec.tamperAnalysis?.isTampered ? (
+                          <>
+                            <ShieldAlert className="w-3 h-3 text-red-300" />
+                            <span>TAMPER ALERT</span>
                           </>
                         ) : isPass ? (
                           <>
@@ -188,7 +195,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}
                       >
-                        <span>{matched}/{total} Matched</span>
+                        <span>{matched}/{total}</span>
                         <span className="text-[9px] opacity-75">({matchPct}%)</span>
                       </span>
 
@@ -198,10 +205,10 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                     </div>
 
                     {/* Discrepancy or status summary */}
-                    <div className="text-[11px] text-slate-700 truncate max-w-md">
+                    <div className="text-[11px] text-slate-700 truncate max-w-full">
                       {isResolved ? (
                         <span className="text-emerald-700 font-medium">
-                          ✓ Operator override: {rec.resolutionNote || 'Accepted simple variation'}
+                          Approved: {rec.resolutionNote || 'Accepted variation'}
                         </span>
                       ) : rec.mismatchSummary ? (
                         <span className="text-rose-700 font-medium">
@@ -209,7 +216,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                         </span>
                       ) : (
                         <span className="text-slate-500">
-                          All statutory declarations match parent reference.
+                          All declarations match master reference.
                         </span>
                       )}
                     </div>
@@ -217,7 +224,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                 </div>
 
                 {/* Right actions: Resolve button & Open detail */}
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                   {hasDiscrepancy && (
                     <button
                       type="button"
@@ -229,7 +236,7 @@ export const RecentInspectionsList: React.FC<RecentInspectionsListProps> = ({
                       title="Mark this packet as PASSED by ignoring simple discrepancy"
                     >
                       <CheckCheck className="w-3 h-3" />
-                      <span>Ignore / Resolve</span>
+                      <span>Resolve</span>
                     </button>
                   )}
 

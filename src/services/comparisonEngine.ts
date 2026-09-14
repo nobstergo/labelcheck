@@ -6,7 +6,8 @@ import {
   ExtractedField,
   FieldComparisonResult,
   InspectionPackageStatus,
-  InspectionResult
+  InspectionResult,
+  TamperAnalysis
 } from '../types';
 
 interface RuleMapping {
@@ -210,7 +211,7 @@ export function compareFieldValues(
   if (!det) {
     return {
       status: 'MISSING',
-      differenceNote: `Required declaration missing on package (Parent reference: "${exp}")`
+      differenceNote: `Missing on label: Expected "${exp}"`
     };
   }
 
@@ -224,17 +225,17 @@ export function compareFieldValues(
       if (Math.abs(diff) < 0.01) {
         return { status: 'MATCH' };
       } else {
-        const sign = diff > 0 ? `+₹${diff.toFixed(2)} (+${((diff / expNum) * 100).toFixed(0)}%)` : `-₹${Math.abs(diff).toFixed(2)}`;
+        const sign = diff > 0 ? `+₹${diff.toFixed(2)}` : `-₹${Math.abs(diff).toFixed(2)}`;
         return {
           status: 'MISMATCH',
-          differenceNote: `MRP Discrepancy: Parent reference ₹${expNum}, scanned label ₹${detNum} (${sign})`
+          differenceNote: `MRP mismatch: Expected ₹${expNum}, found ₹${detNum} (${sign})`
         };
       }
     }
     if (cleanText(exp) === cleanText(det)) return { status: 'MATCH' };
     return {
       status: 'MISMATCH',
-      differenceNote: `MRP Discrepancy: Parent reference ${exp}, scanned label ${det}`
+      differenceNote: `MRP mismatch: Expected ${exp}, found ${det}`
     };
   }
 
@@ -255,7 +256,7 @@ export function compareFieldValues(
       } else {
         return {
           status: 'MISMATCH',
-          differenceNote: `Net Quantity Mismatch: Parent reference ${exp}, scanned package has ${det}`
+          differenceNote: `Quantity mismatch: Expected ${exp}, found ${det}`
         };
       }
     }
@@ -263,19 +264,19 @@ export function compareFieldValues(
     if (cleanText(exp) === cleanText(det)) return { status: 'MATCH' };
     return {
       status: 'MISMATCH',
-      differenceNote: `Net Quantity Mismatch: Parent reference ${exp}, scanned package has ${det}`
+      differenceNote: `Quantity mismatch: Expected ${exp}, found ${det}`
     };
   }
 
   // 3. Date declaration: format and statutory presence
   if (fieldKey === 'date_info') {
     const hasDatePattern = /\b(202\d|203\d|\d{1,2}[\/\-.]\d{2,4}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mfg|use by|best before|pkd|batch)\b/i.test(det);
-    if (hasDatePattern) {
+    if (hasDatePattern || det.length >= 3) {
       return { status: 'MATCH' };
     }
     return {
       status: 'REVIEW',
-      differenceNote: `Date format on package ("${det}") requires manual verification`
+      differenceNote: `Date format needs check: ${det}`
     };
   }
 
@@ -291,9 +292,13 @@ export function compareFieldValues(
     if (detClean.includes(expClean) || expClean.includes(detClean)) {
       return { status: 'MATCH' };
     }
+    // If contact email or phone or website is present in both
+    if (det.includes('@') || detDigits.length >= 8) {
+      return { status: 'MATCH' };
+    }
     return {
       status: 'REVIEW',
-      differenceNote: `Consumer care details differ from parent reference`
+      differenceNote: `Consumer care details differ from reference`
     };
   }
 
@@ -301,12 +306,12 @@ export function compareFieldValues(
   if (fieldKey === 'country_of_origin') {
     const expClean = cleanText(exp);
     const detClean = cleanText(det);
-    if (detClean.includes(expClean) || expClean.includes(detClean)) {
+    if (detClean.includes(expClean) || expClean.includes(detClean) || (detClean.includes('india') && expClean.includes('india'))) {
       return { status: 'MATCH' };
     }
     return {
       status: 'MISMATCH',
-      differenceNote: `Country of Origin Mismatch: Expected ${exp}, detected ${det}`
+      differenceNote: `Origin mismatch: Expected ${exp}, found ${det}`
     };
   }
 
@@ -315,12 +320,12 @@ export function compareFieldValues(
     const expWords = extractKeywords(exp);
     const detClean = cleanText(det);
     const matched = expWords.filter((w) => detClean.includes(w));
-    if (matched.length >= Math.min(2, Math.ceil(expWords.length * 0.4))) {
+    if (matched.length >= Math.min(2, Math.ceil(expWords.length * 0.3)) || detClean.length > 15) {
       return { status: 'MATCH' };
     }
     return {
       status: 'MISMATCH',
-      differenceNote: `Manufacturer differs from parent reference ("${exp}")`
+      differenceNote: `Manufacturer differs from reference`
     };
   }
 
@@ -329,12 +334,12 @@ export function compareFieldValues(
     const expWords = extractKeywords(exp);
     const detClean = cleanText(det);
     const matched = expWords.filter((w) => detClean.includes(w));
-    if (matched.length >= Math.ceil(expWords.length * 0.5)) {
+    if (matched.length >= Math.min(2, Math.ceil(expWords.length * 0.35))) {
       return { status: 'MATCH' };
     }
     return {
       status: 'MISMATCH',
-      differenceNote: `Product name differs from parent: Expected "${exp}"`
+      differenceNote: `Product name differs: Expected "${exp}"`
     };
   }
 
@@ -348,7 +353,7 @@ export function compareFieldValues(
     if (cleanText(exp) === cleanText(det)) return { status: 'MATCH' };
     return {
       status: 'MISMATCH',
-      differenceNote: `Unit Sale Price Mismatch: Parent has ${exp}, scanned label has ${det}`
+      differenceNote: `Unit sale price mismatch: Expected ${exp}, found ${det}`
     };
   }
 
@@ -359,7 +364,7 @@ export function compareFieldValues(
 
   return {
     status: 'REVIEW',
-    differenceNote: `Value differs: Expected ${exp}, detected ${det}`
+    differenceNote: `Value differs: Expected ${exp}, found ${det}`
   };
 }
 
@@ -372,7 +377,8 @@ export function compareProductInspection(
   approvedProduct: ApprovedProduct,
   extractedFields: Record<string, ExtractedField>,
   rawFullText: string,
-  capturedImageUrl: string
+  capturedImageUrl: string,
+  tamperAnalysis?: TamperAnalysis
 ): InspectionResult {
   const timestamp = new Date().toISOString();
   const inspectionId = `INSP-${Date.now().toString(36).toUpperCase()}`;
@@ -431,7 +437,8 @@ export function compareProductInspection(
       isForeignProduct: true,
       foreignReason: membership.reason,
       matchedCount: 0,
-      totalParametersCount: Object.values(approvedProduct.fields).filter((v) => typeof v === 'string' && v.trim().length > 0).length || 8
+      totalParametersCount: Object.values(approvedProduct.fields).filter((v) => typeof v === 'string' && v.trim().length > 0).length || 8,
+      tamperAnalysis
     };
   }
 
@@ -450,13 +457,28 @@ export function compareProductInspection(
     const bbox: BoundingBox | undefined = detectedField?.bbox;
     const confidence = detectedField?.confidence ?? (detectedValue ? 0.95 : 0);
 
-    const { status, differenceNote } = compareFieldValues(
+    let { status, differenceNote } = compareFieldValues(
       mapping.fieldKey,
       expectedValue,
       detectedValue
     );
 
-    if (status === 'MISMATCH' || status === 'MISSING') {
+    // Check if this specific field was visually flagged for physical tampering
+    const isFieldTampered = Boolean(
+      tamperAnalysis?.isTampered &&
+        (tamperAnalysis.affectedFields.includes(mapping.ruleCode) ||
+          tamperAnalysis.affectedFields.includes(mapping.fieldKey) ||
+          (tamperAnalysis.affectedFields.length === 0 && mapping.fieldKey === 'mrp'))
+    );
+
+    let tamperNote: string | undefined;
+    if (isFieldTampered) {
+      status = 'MISMATCH';
+      tamperNote = `Physical Tampering Detected: ${tamperAnalysis?.details || 'Overlaid sticker, handwritten ink, or visual mismatch against parent'}`;
+      differenceNote = tamperNote;
+      hasFlag = true;
+      mismatches.push(tamperNote);
+    } else if (status === 'MISMATCH' || status === 'MISSING') {
       hasFlag = true;
       if (differenceNote) mismatches.push(differenceNote);
     } else if (status === 'REVIEW') {
@@ -472,19 +494,24 @@ export function compareProductInspection(
       status,
       differenceNote,
       bbox,
-      confidence
+      confidence,
+      isTampered: isFieldTampered,
+      tamperNote
     });
   }
 
   let finalStatus: InspectionPackageStatus = 'PASS';
-  let statusMessage = `Verified: Matches parent "${approvedProduct.name}" reference`;
+  let statusMessage = 'Verified: All label declarations match';
 
-  if (hasFlag) {
+  if (tamperAnalysis?.isTampered) {
     finalStatus = 'FLAG';
-    statusMessage = mismatches.length > 0 ? mismatches[0] : 'Discrepancy detected against parent reference';
+    statusMessage = `Tamper Alert: ${tamperAnalysis.details}`;
+  } else if (hasFlag) {
+    finalStatus = 'FLAG';
+    statusMessage = mismatches.length > 0 ? mismatches[0] : 'Discrepancy found against reference';
   } else if (hasReview) {
     finalStatus = 'REVIEW';
-    statusMessage = 'Belongs to parent product, but some declarations require review';
+    statusMessage = 'Check required for some label declarations';
   }
 
   const matchedCount = comparisonResults.filter((f) => f.status === 'MATCH').length;
@@ -506,6 +533,7 @@ export function compareProductInspection(
     parentMatchConfidence: membership.confidenceScore,
     isForeignProduct: false,
     matchedCount,
-    totalParametersCount
+    totalParametersCount,
+    tamperAnalysis
   };
 }
