@@ -52,22 +52,24 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header id="main-header" className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs w-full">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Logo placeholder & Primary Navigation (Scan & Inspect only) */}
-        <div className="flex items-center gap-2.5 sm:gap-6 min-w-0">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 grid grid-cols-3 items-center gap-2">
+        {/* Left: Logo */}
+        <div className="flex items-center justify-start min-w-0">
           <div className="flex items-center cursor-pointer shrink-0" onClick={() => onTabChange('scan')}>
             <LogoPlaceholder size="md" />
           </div>
+        </div>
 
-          {/* Primary Navigation Tabs */}
-          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 shrink-0">
+        {/* Center: Primary Navigation Tabs */}
+        <div className="flex items-center justify-center">
+          <nav className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0 shadow-2xs">
             <button
               type="button"
               id="nav-tab-scan"
               onClick={() => onTabChange('scan')}
-              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentTab === 'scan'
-                  ? 'bg-white text-slate-900 shadow-2xs'
+                  ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -79,9 +81,9 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               id="nav-tab-inspect"
               onClick={() => onTabChange('inspect')}
-              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 currentTab === 'inspect'
-                  ? 'bg-white text-slate-900 shadow-2xs'
+                  ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
@@ -92,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Right: Actions and User Account Profile */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-3 shrink-0">
           {currentTab === 'scan' && hasResult && onOpenReport && (
             <button
               type="button"
